@@ -66,3 +66,12 @@ After meaningful updates, increment the service worker cache name in `service-wo
 ## Notes for future editing
 
 Puzzle data is embedded directly in `index.html` and also copied to `data/puzzles.json`. Keep both in sync if editing manually, or refactor the app to load the JSON at runtime.
+
+## v2 phone/tablet display update
+
+This package has been updated so the crossword board is easier to use on phones and tablets:
+
+- The rendered board is cropped to the smallest rectangle containing answer cells, removing unused outer grid space.
+- Tile size is calculated from the current viewport so the full board fits without horizontal dragging.
+- Mobile styling uses tighter spacing, smaller grid gaps, and touch-friendly clue cards.
+- The service worker cache name has been incremented to help browsers pick up the new files after deployment.

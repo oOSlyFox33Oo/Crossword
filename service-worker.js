@@ -1,4 +1,4 @@
-const CACHE_NAME = 'english-advanced-crossword-v1';
+const CACHE_NAME = 'english-advanced-crossword-v2';
 
 const ASSETS = [
   './',
