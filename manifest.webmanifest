@@ -1,0 +1,24 @@
+{
+  "name": "English Lexicon Crosswords",
+  "short_name": "Lexicon",
+  "description": "A local-first English crossword vocabulary game for upper-intermediate through extremely advanced players.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fff8ed",
+  "theme_color": "#6f3f2a",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
