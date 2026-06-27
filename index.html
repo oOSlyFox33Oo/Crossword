@@ -27,7 +27,10 @@
       --black: #2b211d;
       --shadow: 0 18px 40px rgba(84, 48, 29, 0.12);
       --radius: 18px;
-      --tile-size: clamp(34px, 5.6vw, 48px);
+      --tile-size: 40px;
+      --grid-gap: 2px;
+      --grid-pad: 8px;
+      --num-size: 10px;
       font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
     }
 
@@ -168,7 +171,7 @@
     }
 
     .grid-panel {
-      overflow: auto;
+      overflow: hidden;
       max-width: 100%;
     }
 
@@ -201,12 +204,13 @@
 
     .crossword {
       display: grid;
-      gap: 2px;
+      gap: var(--grid-gap);
       align-items: center;
-      justify-content: start;
+      justify-content: center;
       width: max-content;
-      max-width: none;
-      padding: 8px;
+      max-width: 100%;
+      margin: 0 auto;
+      padding: var(--grid-pad);
       border-radius: 16px;
       background: rgba(77, 43, 27, 0.08);
     }
@@ -251,7 +255,7 @@
       position: absolute;
       top: 2px;
       left: 4px;
-      font: 700 10px/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+      font: 700 var(--num-size)/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
       color: #7d6553;
       z-index: 1;
       pointer-events: none;
@@ -265,10 +269,10 @@
       color: var(--ink);
       text-align: center;
       text-transform: uppercase;
-      font: 800 clamp(1.05rem, 3vw, 1.45rem)/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+      font: 800 clamp(0.62rem, calc(var(--tile-size) * 0.44), 1.45rem)/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
       caret-color: var(--accent);
       outline: none;
-      padding: 8px 0 0;
+      padding: calc(var(--tile-size) * 0.18) 0 0;
       -webkit-appearance: none;
       appearance: none;
       border-radius: 0;
@@ -433,6 +437,37 @@
       .btn, select {
         min-height: 40px;
       }
+
+      .puzzle-meta {
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .puzzle-meta h2 {
+        font-size: 1.08rem;
+      }
+
+      .badge {
+        min-height: 26px;
+        font-size: 0.76rem;
+      }
+
+      .crossword {
+        border-radius: 12px;
+      }
+
+      .tile {
+        border-radius: 4px;
+      }
+
+      .tile.active {
+        outline-width: 2px;
+      }
+
+      .num {
+        top: 1px;
+        left: 2px;
+      }
     }
   </style>
 </head>
@@ -521,6 +556,8 @@
     let cellToWords = new Map();
     let wordById = new Map();
     let wordCellCache = new Map();
+    let currentGridBounds = null;
+    let resizeTimer = null;
 
     const els = {
       puzzleSelect: document.getElementById('puzzleSelect'),
@@ -549,6 +586,13 @@
       renderPuzzleSelector();
       bindControls();
       renderActivePuzzle();
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => fitGridToViewport(activePuzzle(), currentGridBounds), 80);
+      });
+      window.addEventListener('orientationchange', () => {
+        setTimeout(() => fitGridToViewport(activePuzzle(), currentGridBounds), 160);
+      });
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('./service-worker.js').catch(() => {});
@@ -678,10 +722,13 @@
 
     function renderGrid(puzzle) {
       els.crossword.innerHTML = '';
-      els.crossword.style.gridTemplateColumns = `repeat(${puzzle.width}, var(--tile-size))`;
+      currentGridBounds = puzzleFilledBounds(puzzle);
+      fitGridToViewport(puzzle, currentGridBounds);
+      els.crossword.style.gridTemplateColumns = `repeat(${currentGridBounds.cols}, var(--tile-size))`;
+      els.crossword.setAttribute('aria-label', `Crossword grid, ${currentGridBounds.rows} rows by ${currentGridBounds.cols} columns`);
 
-      for (let r = 0; r < puzzle.height; r++) {
-        for (let c = 0; c < puzzle.width; c++) {
+      for (let r = currentGridBounds.minR; r <= currentGridBounds.maxR; r++) {
+        for (let c = currentGridBounds.minC; c <= currentGridBounds.maxC; c++) {
           const unit = puzzle.grid[r][c];
           const tile = document.createElement('div');
           tile.className = unit ? 'tile' : 'tile black';
@@ -723,6 +770,59 @@
           els.crossword.appendChild(tile);
         }
       }
+    }
+
+    function puzzleFilledBounds(puzzle) {
+      let minR = puzzle.height - 1;
+      let minC = puzzle.width - 1;
+      let maxR = 0;
+      let maxC = 0;
+      let hasFilledCell = false;
+
+      for (let r = 0; r < puzzle.height; r++) {
+        for (let c = 0; c < puzzle.width; c++) {
+          if (!puzzle.grid[r][c]) continue;
+          hasFilledCell = true;
+          minR = Math.min(minR, r);
+          minC = Math.min(minC, c);
+          maxR = Math.max(maxR, r);
+          maxC = Math.max(maxC, c);
+        }
+      }
+
+      if (!hasFilledCell) {
+        minR = 0; minC = 0; maxR = puzzle.height - 1; maxC = puzzle.width - 1;
+      }
+
+      return {
+        minR, minC, maxR, maxC,
+        rows: maxR - minR + 1,
+        cols: maxC - minC + 1
+      };
+    }
+
+    function fitGridToViewport(puzzle, bounds = currentGridBounds || puzzleFilledBounds(puzzle)) {
+      if (!puzzle || !bounds || !bounds.cols) return;
+
+      const appGutter = window.innerWidth <= 560 ? 16 : 28;
+      const appWidth = Math.min(1400, Math.max(280, window.innerWidth - appGutter));
+      const isSingleColumn = window.matchMedia('(max-width: 980px)').matches;
+      const panelPadding = window.innerWidth <= 560 ? 26 : 32;
+      const gap = window.innerWidth <= 560 ? 1 : 2;
+      const pad = window.innerWidth <= 560 ? 4 : 8;
+      const maxTile = window.innerWidth <= 560 ? 38 : window.innerWidth <= 980 ? 42 : 48;
+      const gridAreaWidth = isSingleColumn
+        ? appWidth - panelPadding
+        : Math.min(820, Math.max(360, appWidth * 0.58)) - panelPadding;
+      const available = Math.max(220, gridAreaWidth) - (pad * 2) - (gap * Math.max(0, bounds.cols - 1));
+      const fittedTile = Math.floor(available / bounds.cols);
+      const tileSize = Math.max(8, Math.min(maxTile, fittedTile));
+      const numSize = Math.max(5, Math.min(10, Math.round(tileSize * 0.24)));
+
+      document.documentElement.style.setProperty('--tile-size', `${tileSize}px`);
+      document.documentElement.style.setProperty('--grid-gap', `${gap}px`);
+      document.documentElement.style.setProperty('--grid-pad', `${pad}px`);
+      document.documentElement.style.setProperty('--num-size', `${numSize}px`);
     }
 
     function renderClues(puzzle) {
